@@ -379,16 +379,32 @@ def trigger_webhooks_async_for_multiple_objects(
             webhook_payload_data.subscribable_object
             for webhook_payload_data in webhook_payloads_data
         ]
-        deferred_deliveries_per_object = (
-            create_deliveries_for_deferred_payload_subscriptions(
-                event_type=event_type,
-                subscribable_objects=subscribable_objects,
-                webhooks=subscription_webhooks,
-                requestor=requestor,
-                allow_replica=allow_replica,
-                request_time=request_time,
-            )
+        contains_bulk_entries = any(
+            isinstance(obj, list) for obj in subscribable_objects
         )
+        if not contains_bulk_entries:
+            deferred_deliveries_per_object = (
+                create_deliveries_for_deferred_payload_subscriptions(
+                    event_type=event_type,
+                    subscribable_objects=subscribable_objects,
+                    webhooks=subscription_webhooks,
+                    requestor=requestor,
+                    allow_replica=allow_replica,
+                    request_time=request_time,
+                )
+            )
+        else:
+            deliveries.extend(
+                create_deliveries_for_multiple_subscription_objects(
+                    event_type=event_type,
+                    subscribable_objects=subscribable_objects,
+                    webhooks=subscription_webhooks,
+                    requestor=requestor,
+                    allow_replica=allow_replica,
+                    pre_save_payloads=pre_save_payloads,
+                    request_time=request_time,
+                )
+            )
 
     for _, deferred_deliveries in deferred_deliveries_per_object.items():
         if not deferred_deliveries:
