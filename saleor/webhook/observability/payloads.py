@@ -12,7 +12,6 @@ from graphql import get_operation_ast
 
 from ...core.utils import build_absolute_uri
 from .. import traced_payload_generator
-from ..event_types import WebhookEventSyncType
 from .exceptions import ApiCallTruncationError, EventDeliveryAttemptTruncationError
 from .obfuscation import (
     anonymize_event_payload,
@@ -229,7 +228,6 @@ def generate_event_delivery_attempt_payload(
             id=graphene.Node.to_global_id("EventDelivery", attempt.delivery.pk),
             status=attempt.delivery.status,
             event_type=attempt.delivery.event_type,
-            event_sync=attempt.delivery.event_type in WebhookEventSyncType.ALL,
             payload=EventDeliveryPayload(
                 content_length=len(payload_data.encode("utf-8")),
                 body=TRUNC_PLACEHOLDER,

@@ -36,20 +36,9 @@ from ..types import Webhook
 class WebhookCreateInput(BaseInputObjectType):
     name = graphene.String(description="The name of the webhook.", required=False)
     target_url = graphene.String(description="The url to receive the payload.")
-    events = NonNullList(
-        enums.WebhookEventTypeEnum,
-        description=(
-            f"The events that webhook wants to subscribe. {DEPRECATED_IN_3X_INPUT} "
-            "Use `asyncEvents` or `syncEvents` instead."
-        ),
-    )
     async_events = NonNullList(
         enums.WebhookEventTypeAsyncEnum,
         description="The asynchronous events that webhook wants to subscribe.",
-    )
-    sync_events = NonNullList(
-        enums.WebhookEventTypeSyncEnum,
-        description="The synchronous events that webhook wants to subscribe.",
     )
     app = graphene.ID(
         required=False,

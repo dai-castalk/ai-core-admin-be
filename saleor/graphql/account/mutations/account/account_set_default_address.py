@@ -5,7 +5,6 @@ from django.core.exceptions import ValidationError
 
 from .....account import models, utils
 from .....account.error_codes import AccountErrorCode
-from .....checkout import AddressType
 from .....permission.auth_filters import AuthorizationFilters
 from .....webhook.event_types import WebhookEventAsyncType
 from ....core import ResolveInfo
@@ -14,7 +13,6 @@ from ....core.mutations import BaseMutation
 from ....core.types import AccountError
 from ....core.utils import WebhookEventInfo
 from ....plugins.dataloaders import get_plugin_manager_promise
-from ...enums import AddressTypeEnum
 from ...types import Address, User
 
 
@@ -25,7 +23,6 @@ class AccountSetDefaultAddress(BaseMutation):
         id = graphene.ID(
             required=True, description="ID of the address to set as default."
         )
-        type = AddressTypeEnum(required=True, description="The type of address.")
 
     class Meta:
         description = "Sets a default address for the authenticated user."
@@ -57,12 +54,6 @@ class AccountSetDefaultAddress(BaseMutation):
                     )
                 }
             )
-
-        if type == AddressTypeEnum.BILLING.value:
-            address_type = AddressType.BILLING
-        else:
-            address_type = AddressType.SHIPPING
         manager = get_plugin_manager_promise(info.context).get()
-        utils.change_user_default_address(user, address, address_type, manager)
         cls.call_event(manager.customer_updated, user)
         return cls(user=user)

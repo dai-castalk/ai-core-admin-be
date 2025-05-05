@@ -5,9 +5,6 @@ from django.core.exceptions import ValidationError
 
 from ....channel import models
 from ....channel.error_codes import ChannelErrorCode
-from ....checkout.models import Checkout
-from ....core.tracing import traced_atomic_transaction
-from ....order.models import Order
 from ....permission.enums import ChannelPermissions
 from ....webhook.event_types import WebhookEventAsyncType
 from ...core import ResolveInfo
@@ -17,7 +14,6 @@ from ...core.types import BaseInputObjectType, ChannelError
 from ...core.utils import WebhookEventInfo
 from ...plugins.dataloaders import get_plugin_manager_promise
 from ..types import Channel
-from ..utils import delete_invalid_warehouse_to_shipping_zone_relations
 
 
 class ChannelDeleteInput(BaseInputObjectType):
@@ -79,42 +75,6 @@ class ChannelDelete(ModelDeleteMutation):
             )
 
     @classmethod
-    def migrate_orders_to_target_channel(cls, origin_channel_id, target_channel_id):
-        Order.objects.select_for_update().filter(channel_id=origin_channel_id).update(
-            channel=target_channel_id
-        )
-
-    @classmethod
-    def delete_checkouts(cls, origin_channel_id):
-        Checkout.objects.select_for_update().filter(
-            channel_id=origin_channel_id
-        ).delete()
-
-    @classmethod
-    def perform_delete_with_order_migration(cls, origin_channel, target_channel):
-        cls.validate_input(origin_channel, target_channel)
-
-        with traced_atomic_transaction():
-            origin_channel_id = origin_channel.id
-            cls.delete_checkouts(origin_channel_id)
-            cls.migrate_orders_to_target_channel(origin_channel_id, target_channel.id)
-
-    @classmethod
-    def perform_delete_channel_without_order(cls, origin_channel):
-        if Order.objects.filter(channel=origin_channel).exists():
-            raise ValidationError(
-                {
-                    "id": ValidationError(
-                        "Cannot remove channel with orders. Try to migrate orders to "
-                        "another channel by passing `targetChannel` param.",
-                        code=ChannelErrorCode.CHANNEL_WITH_ORDERS.value,
-                    )
-                }
-            )
-        with traced_atomic_transaction():
-            cls.delete_checkouts(origin_channel.id)
-
-    @classmethod
     def post_save_action(cls, info: ResolveInfo, instance, cleaned_input):
         manager = get_plugin_manager_promise(info.context).get()
         cls.call_event(manager.channel_deleted, instance)
@@ -123,19 +83,4 @@ class ChannelDelete(ModelDeleteMutation):
     def perform_mutation(  # type: ignore[override]
         cls, root, info: ResolveInfo, /, *, id: str, input: Optional[dict] = None
     ):
-        origin_channel = cls.get_node_or_error(info, id, only_type=Channel)
-        target_channel_global_id = input.get("channel_id") if input else None
-        if target_channel_global_id:
-            target_channel = cls.get_node_or_error(
-                info, target_channel_global_id, only_type=Channel
-            )
-            cls.perform_delete_with_order_migration(origin_channel, target_channel)
-        else:
-            cls.perform_delete_channel_without_order(origin_channel)
-        with traced_atomic_transaction():
-            delete_invalid_warehouse_to_shipping_zone_relations(
-                origin_channel,
-                origin_channel.warehouses.values("id"),
-                channel_deletion=True,
-            )
         return super().perform_mutation(root, info, id=id)

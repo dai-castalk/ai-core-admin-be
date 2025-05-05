@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.db.models.expressions import Exists, OuterRef
 
 from ..app.models import App
-from .event_types import WebhookEventAsyncType, WebhookEventSyncType
+from .event_types import WebhookEventAsyncType
 from .models import Webhook, WebhookEvent
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ def get_filter_for_single_webhook_event(
 ):
     permissions = {}
     required_permission = WebhookEventAsyncType.PERMISSIONS.get(
-        event_type, WebhookEventSyncType.PERMISSIONS.get(event_type)
+        event_type
     )
     if required_permission:
         app_label, codename = required_permission.value.split(".")
@@ -138,7 +138,7 @@ def calculate_webhooks_for_multiple_events(
         events = events_types_by_webhook_id_map.get(webhook.id, set())
         for event in events:
             required_permission = WebhookEventAsyncType.PERMISSIONS.get(
-                event, WebhookEventSyncType.PERMISSIONS.get(event)
+                event
             )
             if not required_permission:
                 active_event_map[event].add(webhook)

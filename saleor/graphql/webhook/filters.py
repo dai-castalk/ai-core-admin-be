@@ -2,7 +2,7 @@ import django_filters
 
 from ..core.filters import EnumFilter
 from ..core.types import FilterInputObjectType
-from .enums import EventDeliveryStatusEnum, WebhookEventTypeEnum
+from .enums import EventDeliveryStatusEnum
 
 
 def filter_status(qs, _, value):
@@ -19,7 +19,6 @@ def filter_event_type(qs, _, value):
 
 class EventDeliveryFilter(django_filters.FilterSet):
     status = EnumFilter(input_class=EventDeliveryStatusEnum, method=filter_status)
-    event_type = EnumFilter(input_class=WebhookEventTypeEnum, method=filter_event_type)
 
 
 class EventDeliveryFilterInput(FilterInputObjectType):

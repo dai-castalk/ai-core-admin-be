@@ -5,18 +5,8 @@ from django.utils.text import slugify
 from ....channel import models
 from ....channel.error_codes import ChannelErrorCode
 from ....core.tracing import traced_atomic_transaction
-from ....discount.tasks import (
-    decrease_voucher_code_usage_of_draft_orders,
-    disconnect_voucher_codes_from_draft_orders,
-)
 from ....permission.enums import (
     ChannelPermissions,
-    CheckoutPermissions,
-    OrderPermissions,
-    PaymentPermissions,
-)
-from ....shipping.tasks import (
-    drop_invalid_shipping_methods_relations_for_given_channels,
 )
 from ....webhook.event_types import WebhookEventAsyncType
 from ...account.enums import CountryCodeEnum
@@ -29,7 +19,6 @@ from ...core.utils import WebhookEventInfo
 from ...plugins.dataloaders import get_plugin_manager_promise
 from ...utils.validators import check_for_duplicates
 from ..types import Channel
-from ..utils import delete_invalid_warehouse_to_shipping_zone_relations
 from .channel_create import ChannelInput
 from .utils import (
     clean_input_checkout_settings,
@@ -152,9 +141,6 @@ class ChannelUpdate(ModelMutation):
         input = data["data"]["input"]
 
         settings_per_permission_map = {
-            "order_settings": OrderPermissions.MANAGE_ORDERS,
-            "checkout_settings": CheckoutPermissions.MANAGE_CHECKOUTS,
-            "payment_settings": PaymentPermissions.HANDLE_PAYMENTS,
         }
 
         if set(input.keys()).difference(settings_per_permission_map.keys()):
@@ -176,67 +162,6 @@ class ChannelUpdate(ModelMutation):
     def _save_m2m(cls, info: ResolveInfo, instance, cleaned_data):
         with traced_atomic_transaction():
             super()._save_m2m(info, instance, cleaned_data)
-            cls._update_shipping_zones(instance, cleaned_data)
-            cls._update_warehouses(instance, cleaned_data)
-            if (
-                "remove_shipping_zones" in cleaned_data
-                or "remove_warehouses" in cleaned_data
-            ):
-                warehouse_ids = [
-                    warehouse.id
-                    for warehouse in cleaned_data.get("remove_warehouses", [])
-                ]
-                shipping_zone_ids = [
-                    warehouse.id
-                    for warehouse in cleaned_data.get("remove_shipping_zones", [])
-                ]
-                delete_invalid_warehouse_to_shipping_zone_relations(
-                    instance, warehouse_ids, shipping_zone_ids
-                )
-
-    @classmethod
-    def _update_shipping_zones(cls, instance, cleaned_data):
-        add_shipping_zones = cleaned_data.get("add_shipping_zones")
-        if add_shipping_zones:
-            instance.shipping_zones.add(*add_shipping_zones)
-        remove_shipping_zones = cleaned_data.get("remove_shipping_zones")
-        if remove_shipping_zones:
-            instance.shipping_zones.remove(*remove_shipping_zones)
-            shipping_channel_listings = instance.shipping_method_listings.filter(
-                shipping_method__shipping_zone__in=remove_shipping_zones
-            )
-            shipping_method_ids = list(
-                shipping_channel_listings.values_list("shipping_method_id", flat=True)
-            )
-            shipping_channel_listings.delete()
-            drop_invalid_shipping_methods_relations_for_given_channels.delay(
-                shipping_method_ids, [instance.id]
-            )
-
-    @classmethod
-    def _update_warehouses(cls, instance, cleaned_data):
-        add_warehouses = cleaned_data.get("add_warehouses")
-        if add_warehouses:
-            instance.warehouses.add(*add_warehouses)
-        remove_warehouses = cleaned_data.get("remove_warehouses")
-        if remove_warehouses:
-            instance.warehouses.remove(*remove_warehouses)
-
-    @classmethod
-    def _update_voucher_usage(cls, cleaned_input, instance):
-        """Update voucher code usage.
-
-        When the 'include_draft_order_in_voucher_usage' flag is changed:
-        - True -> False: decrease voucher usage of all vouchers associated with
-        draft orders.
-        - False -> True: disconnect vouchers from all draft orders.
-        """
-        current_flag = cleaned_input.get("include_draft_order_in_voucher_usage")
-        previous_flag = cleaned_input.get("prev_include_draft_order_in_voucher_usage")
-        if current_flag is False and previous_flag is True:
-            decrease_voucher_code_usage_of_draft_orders(instance.id)
-        elif current_flag is True and previous_flag is False:
-            disconnect_voucher_codes_from_draft_orders(instance.id)
 
     @classmethod
     def post_save_action(cls, info: ResolveInfo, instance, cleaned_input):
@@ -244,4 +169,3 @@ class ChannelUpdate(ModelMutation):
         cls.call_event(manager.channel_updated, instance)
         if cleaned_input.get("metadata"):
             cls.call_event(manager.channel_metadata_updated, instance)
-        cls._update_voucher_usage(cleaned_input, instance)

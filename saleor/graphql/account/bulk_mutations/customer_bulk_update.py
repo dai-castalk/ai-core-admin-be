@@ -6,14 +6,11 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from graphene.utils.str_converters import to_camel_case
 
+from ...core.utils.metadata import metadata_contains_empty_key
 from ....account import models
 from ....account.events import CustomerEvents
 from ....account.search import prepare_user_search_document_value
-from ....checkout import AddressType
 from ....core.tracing import traced_atomic_transaction
-from ....giftcard.search import mark_gift_cards_search_index_as_dirty_by_users
-from ....giftcard.utils import assign_user_gift_cards
-from ....order.utils import match_orders_with_new_user
 from ....permission.enums import AccountPermissions
 from ....webhook.event_types import WebhookEventAsyncType
 from ....webhook.utils import get_webhooks_for_event
@@ -29,7 +26,6 @@ from ...core.types import (
 )
 from ...core.utils import WebhookEventInfo, get_duplicated_values
 from ...core.validators import validate_one_of_args_is_in_mutation
-from ...payment.utils import metadata_contains_empty_key
 from ...plugins.dataloaders import get_app_promise, get_plugin_manager_promise
 from ..i18n import I18nMixin
 from ..mutations.base import (
@@ -275,28 +271,6 @@ class CustomerBulkUpdate(BaseMutation, I18nMixin):
                     )
                 )
                 base_error_count += 1
-
-            if shipping_address_data:
-                clean_shipping_address = cls.clean_address(
-                    shipping_address_data,
-                    address_type=AddressType.SHIPPING,
-                    field=SHIPPING_ADDRESS_FIELD,
-                    index=index,
-                    index_error_map=index_error_map,
-                    info=info,
-                )
-                customer_input["input"][SHIPPING_ADDRESS_FIELD] = clean_shipping_address
-
-            if billing_address_data:
-                clean_billing_address = cls.clean_address(
-                    billing_address_data,
-                    address_type=AddressType.BILLING,
-                    field=BILLING_ADDRESS_FIELD,
-                    index=index,
-                    index_error_map=index_error_map,
-                    info=info,
-                )
-                customer_input["input"][BILLING_ADDRESS_FIELD] = clean_billing_address
 
             if email := customer_input.get("email"):
                 customer_input["email"] = email.lower()
@@ -585,10 +559,6 @@ class CustomerBulkUpdate(BaseMutation, I18nMixin):
                 not old_instance.is_confirmed and updated_instance.is_confirmed
             )
 
-            if has_new_email or being_confirmed:
-                assign_user_gift_cards(updated_instance)
-                match_orders_with_new_user(updated_instance)
-
             # Generate the events accordingly
             if has_new_email:
                 customer_events.append(
@@ -641,7 +611,6 @@ class CustomerBulkUpdate(BaseMutation, I18nMixin):
                 )
 
         models.CustomerEvent.objects.bulk_create(customer_events)
-        mark_gift_cards_search_index_as_dirty_by_users(users_with_name_or_email_updated)
 
     @classmethod
     def get_results(cls, instances_data_with_errors_list, reject_everything=False):

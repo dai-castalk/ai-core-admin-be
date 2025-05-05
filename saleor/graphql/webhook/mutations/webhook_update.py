@@ -28,22 +28,9 @@ class WebhookUpdateInput(BaseInputObjectType):
     target_url = graphene.String(
         description="The url to receive the payload.", required=False
     )
-    events = NonNullList(
-        enums.WebhookEventTypeEnum,
-        description=(
-            f"The events that webhook wants to subscribe. {DEPRECATED_IN_3X_INPUT} "
-            "Use `asyncEvents` or `syncEvents` instead."
-        ),
-        required=False,
-    )
     async_events = NonNullList(
         enums.WebhookEventTypeAsyncEnum,
         description="The asynchronous events that webhook wants to subscribe.",
-        required=False,
-    )
-    sync_events = NonNullList(
-        enums.WebhookEventTypeSyncEnum,
-        description="The synchronous events that webhook wants to subscribe.",
         required=False,
     )
     app = graphene.ID(

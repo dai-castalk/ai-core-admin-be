@@ -207,7 +207,6 @@ context_processors = [
     "django.template.context_processors.debug",
     "django.template.context_processors.media",
     "django.template.context_processors.static",
-    "saleor.site.context_processors.site",
 ]
 
 loaders = [
@@ -277,25 +276,10 @@ INSTALLED_APPS = [
     "saleor.auth",
     "saleor.plugins",
     "saleor.account",
-    "saleor.discount",
-    "saleor.giftcard",
-    "saleor.product",
-    "saleor.attribute",
     "saleor.channel",
-    "saleor.checkout",
     "saleor.core",
     "saleor.csv",
     "saleor.graphql",
-    "saleor.menu",
-    "saleor.order",
-    "saleor.invoice",
-    "saleor.seo",
-    "saleor.shipping",
-    "saleor.site",
-    "saleor.page",
-    "saleor.payment",
-    "saleor.tax",
-    "saleor.warehouse",
     "saleor.webhook",
     "saleor.app",
     "saleor.thumbnail",
@@ -609,80 +593,17 @@ BEAT_PRICE_RECALCULATION_SCHEDULE_EXPIRE_AFTER_SEC = BEAT_PRICE_RECALCULATION_SC
 # the expiration value. This makes sure if the task or scheduling is wrapped
 # by custom code (e.g., a Saleor fork), the expiration is still present.
 CELERY_BEAT_SCHEDULE = {
-    "delete-empty-allocations": {
-        "task": "saleor.warehouse.tasks.delete_empty_allocations_task",
-        "schedule": timedelta(days=1),
-    },
-    "deactivate-preorder-for-variants": {
-        "task": "saleor.product.tasks.deactivate_preorder_for_variants_task",
-        "schedule": timedelta(hours=1),
-    },
-    "delete-expired-reservations": {
-        "task": "saleor.warehouse.tasks.delete_expired_reservations_task",
-        "schedule": timedelta(days=1),
-    },
-    "delete-expired-checkouts": {
-        "task": "saleor.checkout.tasks.delete_expired_checkouts",
-        "schedule": crontab(hour=0, minute=0),
-    },
-    "delete_expired_orders": {
-        "task": "saleor.order.tasks.delete_expired_orders_task",
-        "schedule": crontab(hour=2, minute=0),
-    },
     "delete-outdated-event-data": {
         "task": "saleor.core.tasks.delete_event_payloads_task",
         "schedule": timedelta(days=1),
-    },
-    "deactivate-expired-gift-cards": {
-        "task": "saleor.giftcard.tasks.deactivate_expired_cards_task",
-        "schedule": crontab(hour=0, minute=0),
-    },
-    "update-stocks-quantity-allocated": {
-        "task": "saleor.warehouse.tasks.update_stocks_quantity_allocated_task",
-        "schedule": crontab(hour=0, minute=0),
     },
     "delete-old-export-files": {
         "task": "saleor.csv.tasks.delete_old_export_files",
         "schedule": crontab(hour=1, minute=0),
     },
-    "handle-promotion-toggle": {
-        "task": "saleor.discount.tasks.handle_promotion_toggle",
-        "schedule": initiated_promotion_webhook_schedule,
-    },
-    "update-products-search-vectors": {
-        "task": "saleor.product.tasks.update_products_search_vector_task",
-        "schedule": timedelta(seconds=BEAT_UPDATE_SEARCH_SEC),
-        "options": {"expires": BEAT_UPDATE_SEARCH_EXPIRE_AFTER_SEC},
-    },
-    "update-gift-cards-search-vectors": {
-        "task": "saleor.giftcard.tasks.update_gift_cards_search_vector_task",
-        "schedule": timedelta(seconds=BEAT_UPDATE_SEARCH_SEC),
-        "options": {"expires": BEAT_UPDATE_SEARCH_EXPIRE_AFTER_SEC},
-    },
-    "expire-orders": {
-        "task": "saleor.order.tasks.expire_orders_task",
-        "schedule": BEAT_EXPIRE_ORDERS_AFTER_TIMEDELTA,
-    },
     "remove-apps-marked-as-removed": {
         "task": "saleor.app.tasks.remove_apps_task",
         "schedule": crontab(hour=3, minute=0),
-    },
-    "release-funds-for-abandoned-checkouts": {
-        "task": "saleor.payment.tasks.transaction_release_funds_for_checkout_task",
-        "schedule": timedelta(minutes=10),
-    },
-    "recalculate-promotion-rules": {
-        "task": (
-            "saleor.product.tasks"
-            ".update_variant_relations_for_active_promotion_rules_task"
-        ),
-        "schedule": timedelta(seconds=BEAT_PRICE_RECALCULATION_SCHEDULE),
-        "options": {"expires": BEAT_PRICE_RECALCULATION_SCHEDULE_EXPIRE_AFTER_SEC},
-    },
-    "recalculate-discounted-price-for-products": {
-        "task": "saleor.product.tasks.recalculate_discounted_price_for_products_task",
-        "schedule": timedelta(seconds=BEAT_PRICE_RECALCULATION_SCHEDULE),
-        "options": {"expires": BEAT_PRICE_RECALCULATION_SCHEDULE_EXPIRE_AFTER_SEC},
     },
 }
 
@@ -788,22 +709,11 @@ GRAPHQL_QUERY_MAX_COMPLEXITY = int(
 FEDERATED_QUERY_MAX_ENTITIES = int(os.environ.get("FEDERATED_QUERY_MAX_ENTITIES", 100))
 
 BUILTIN_PLUGINS = [
-    "saleor.plugins.avatax.plugin.AvataxPlugin",
-    "saleor.plugins.webhook.plugin.WebhookPlugin",
-    "saleor.payment.gateways.dummy.plugin.DummyGatewayPlugin",
-    "saleor.payment.gateways.dummy_credit_card.plugin.DummyCreditCardGatewayPlugin",
-    "saleor.payment.gateways.stripe.deprecated.plugin.DeprecatedStripeGatewayPlugin",
-    "saleor.payment.gateways.stripe.plugin.StripeGatewayPlugin",
-    "saleor.payment.gateways.braintree.plugin.BraintreeGatewayPlugin",
-    "saleor.payment.gateways.razorpay.plugin.RazorpayGatewayPlugin",
-    "saleor.payment.gateways.adyen.plugin.AdyenGatewayPlugin",
-    "saleor.payment.gateways.authorize_net.plugin.AuthorizeNetGatewayPlugin",
-    "saleor.payment.gateways.np_atobarai.plugin.NPAtobaraiGatewayPlugin",
-    "saleor.plugins.invoicing.plugin.InvoicingPlugin",
-    "saleor.plugins.user_email.plugin.UserEmailPlugin",
-    "saleor.plugins.admin_email.plugin.AdminEmailPlugin",
-    "saleor.plugins.sendgrid.plugin.SendgridEmailPlugin",
-    "saleor.plugins.openid_connect.plugin.OpenIDConnectPlugin",
+    # "saleor.plugins.webhook.plugin.WebhookPlugin",
+    # "saleor.plugins.user_email.plugin.UserEmailPlugin",
+    # "saleor.plugins.admin_email.plugin.AdminEmailPlugin",
+    # "saleor.plugins.sendgrid.plugin.SendgridEmailPlugin",
+    # "saleor.plugins.openid_connect.plugin.OpenIDConnectPlugin",
 ]
 
 # Plugin discovery

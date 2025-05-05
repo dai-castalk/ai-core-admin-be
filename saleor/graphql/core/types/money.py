@@ -2,7 +2,6 @@ import graphene
 from django_prices.templatetags import prices
 
 from ....core.prices import quantize_price
-from ...core.doc_category import DOC_CATEGORY_TAXES
 from ...core.types import BaseObjectType
 
 
@@ -53,38 +52,3 @@ class TaxedMoneyRange(graphene.ObjectType):
 
     class Meta:
         description = "Represents a range of monetary values."
-
-
-class VAT(BaseObjectType):
-    country_code = graphene.String(description="Country code.", required=True)
-    standard_rate = graphene.Float(description="Standard VAT rate in percent.")
-    reduced_rates = graphene.List(
-        graphene.NonNull(lambda: ReducedRate),
-        description="Country's VAT rate exceptions for specific types of goods.",
-        required=True,
-    )
-
-    class Meta:
-        description = "Represents a VAT rate for a country."
-        doc_category = DOC_CATEGORY_TAXES
-
-    @staticmethod
-    def resolve_standard_rate(root, _info):
-        return root.data.get("standard_rate")
-
-    @staticmethod
-    def resolve_reduced_rates(root, _info):
-        reduced_rates = root.data.get("reduced_rates", {}) or {}
-        return [
-            ReducedRate(rate=rate, rate_type=rate_type)
-            for rate_type, rate in reduced_rates.items()
-        ]
-
-
-class ReducedRate(BaseObjectType):
-    rate = graphene.Float(description="Reduced VAT rate in percent.", required=True)
-    rate_type = graphene.String(description="A type of goods.", required=True)
-
-    class Meta:
-        description = "Represents a reduced VAT rate for a particular type of goods."
-        doc_category = DOC_CATEGORY_TAXES

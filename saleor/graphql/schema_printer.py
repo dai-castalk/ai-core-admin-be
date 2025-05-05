@@ -24,7 +24,7 @@ from graphql.utils.ast_from_value import ast_from_value
 
 __all__ = ["print_schema", "print_introspection_schema", "print_type"]
 
-from ..webhook.event_types import WebhookEventAsyncType, WebhookEventSyncType
+from ..webhook.event_types import WebhookEventAsyncType
 
 
 def is_specified_directive(directive: GraphQLDirective) -> bool:
@@ -132,17 +132,12 @@ def print_object_directvie_for_webhook_events_info(type_) -> str:
         return ""
 
     async_events = []
-    sync_events = []
     for event in webhook_events_info:
         if event.type in WebhookEventAsyncType.ALL:
             async_events.append(event.type.upper())
-        if event.type in WebhookEventSyncType.ALL:
-            sync_events.append(event.type.upper())
     async_events_str = ", ".join(async_events)
-    sync_events_str = ", ".join(sync_events)
     return (
         f" @webhookEventsInfo(asyncEvents: [{async_events_str}], syncEvents: "
-        f"[{sync_events_str}])"
     )
 
 
@@ -179,8 +174,6 @@ def print_field_directives_for_webhook_events_info(field, name) -> str:
     for event in webhook_events_info:
         if event.type in WebhookEventAsyncType.ALL:
             async_events.append(event.type.upper())
-        if event.type in WebhookEventSyncType.ALL:
-            sync_events.append(event.type.upper())
     async_events_str = ", ".join(async_events)
     sync_events_str = ", ".join(sync_events)
 

@@ -8,7 +8,6 @@ from graphql.error import GraphQLError
 from ...channel.exceptions import ChannelNotDefined, NoDefaultChannel
 from ...channel.models import Channel
 from ...channel.utils import get_default_channel
-from ...shipping.models import ShippingZone
 
 
 def get_default_channel_slug_or_graphql_error(
@@ -80,47 +79,6 @@ def clean_channel(
                 }
             )
     return channel
-
-
-def delete_invalid_warehouse_to_shipping_zone_relations(
-    channel, warehouse_ids, shipping_zone_ids=None, channel_deletion=False
-):
-    """Delete not valid warehouse-zone relations after channel updates.
-
-    Look up for warehouse to shipping zone relations that will not have common channels
-    after unlinking the given channel from warehouses or shipping zones.
-    The warehouse can be linked with shipping zone only if common channel exists.
-    """
-    shipping_zone_ids = shipping_zone_ids or []
-
-    ChannelWarehouse = Channel.warehouses.through
-    ShippingZoneWarehouse = ShippingZone.warehouses.through
-    ShippingZoneChannel = ShippingZone.channels.through
-
-    shipping_zone_warehouses = ShippingZoneWarehouse.objects.filter(
-        Q(warehouse_id__in=warehouse_ids) | Q(shippingzone_id__in=shipping_zone_ids)
-    )
-    channel_warehouses = ChannelWarehouse.objects.filter(
-        Exists(shipping_zone_warehouses.filter(warehouse_id=OuterRef("warehouse_id")))
-    )
-    shipping_zone_channels = ShippingZoneChannel.objects.filter(
-        Exists(
-            shipping_zone_warehouses.filter(shippingzone_id=OuterRef("shippingzone_id"))
-        )
-    )
-
-    warehouse_to_channel_ids = _get_warehouse_to_channels_mapping(
-        channel, channel_warehouses, channel_deletion
-    )
-    zone_to_channel_ids = _get_shipping_zone_to_channels_mapping(shipping_zone_channels)
-    shipping_zone_warehouses_to_delete = _get_invalid_shipping_zone_warehouses_ids(
-        shipping_zone_warehouses, warehouse_to_channel_ids, zone_to_channel_ids
-    )
-
-    # delete invalid shipping zone - warehouse relations
-    ShippingZoneWarehouse.objects.filter(
-        id__in=shipping_zone_warehouses_to_delete
-    ).delete()
 
 
 def _get_warehouse_to_channels_mapping(channel, channel_warehouses, channel_deletion):

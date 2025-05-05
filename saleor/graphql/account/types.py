@@ -8,16 +8,12 @@ from graphene import relay
 from promise import Promise
 
 from ...account import models
-from ...checkout.utils import get_user_checkout
 from ...core.exceptions import PermissionDenied
 from ...graphql.meta.inputs import MetadataInput
-from ...order import OrderStatus
-from ...payment.interface import ListStoredPaymentMethodsRequestData
 from ...permission.auth_filters import AuthorizationFilters
 from ...permission.enums import (
     AccountPermissions,
     AppPermission,
-    OrderPermissions,
 )
 from ...plugins.manager import PluginsManager
 from ...thumbnail.utils import (
@@ -30,8 +26,6 @@ from ..app.dataloaders import AppByIdLoader, get_app_promise
 from ..app.types import App
 from ..channel.dataloaders import ChannelBySlugLoader
 from ..channel.types import Channel
-from ..checkout.dataloaders import CheckoutByUserAndChannelLoader, CheckoutByUserLoader
-from ..checkout.types import Checkout, CheckoutCountableConnection
 from ..core import ResolveInfo
 from ..core.connection import CountableConnection, create_connection_slice
 from ..core.context import get_database_connection_name
@@ -61,10 +55,7 @@ from ..core.types import (
     ThumbnailField,
 )
 from ..core.utils import from_global_id_or_error, str_to_enum, to_global_id_or_none
-from ..giftcard.dataloaders import GiftCardsByUserLoader
 from ..meta.types import ObjectWithMetadata
-from ..order.dataloaders import OrderLineByIdLoader, OrdersByUserLoader
-from ..payment.types import StoredPaymentMethod
 from ..plugins.dataloaders import get_plugin_manager_promise
 from ..utils import format_permissions_for_display, get_user_or_app_from_context
 from .dataloaders import (
@@ -232,12 +223,6 @@ class CustomerEvent(ModelObjectType[models.CustomerEvent]):
     app = graphene.Field(App, description="App that performed the action.")
     message = graphene.String(description="Content of the event.")
     count = graphene.Int(description="Number of objects concerned by the event.")
-    order = graphene.Field(
-        "saleor.graphql.order.types.Order", description="The concerned order."
-    )
-    order_line = graphene.Field(
-        "saleor.graphql.order.types.OrderLine", description="The concerned order line."
-    )
 
     class Meta:
         description = "History log of the customer."
@@ -278,14 +263,6 @@ class CustomerEvent(ModelObjectType[models.CustomerEvent]):
     @staticmethod
     def resolve_count(root: models.CustomerEvent, _info: ResolveInfo):
         return root.parameters.get("count", None)
-
-    @staticmethod
-    def resolve_order_line(root: models.CustomerEvent, info: ResolveInfo):
-        if "order_line_pk" in root.parameters:
-            return OrderLineByIdLoader(info.context).load(
-                uuid.UUID(root.parameters["order_line_pk"])
-            )
-        return None
 
 
 class UserPermission(Permission):
@@ -338,52 +315,10 @@ class User(ModelObjectType[models.User]):
     addresses = NonNullList(
         Address, description="List of all user's addresses.", required=True
     )
-    checkout = graphene.Field(
-        Checkout,
-        description="Returns the last open checkout of this user.",
-        deprecation_reason=(
-            f"{DEPRECATED_IN_3X_FIELD} "
-            "Use the `checkoutTokens` field to fetch the user checkouts."
-        ),
-    )
-    checkout_tokens = NonNullList(
-        UUID,
-        description="Returns the checkout UUID's assigned to this user.",
-        channel=graphene.String(
-            description="Slug of a channel for which the data should be returned."
-        ),
-        deprecation_reason=(f"{DEPRECATED_IN_3X_FIELD} Use `checkoutIds` instead."),
-    )
-    checkout_ids = NonNullList(
-        graphene.ID,
-        description="Returns the checkout ID's assigned to this user.",
-        channel=graphene.String(
-            description="Slug of a channel for which the data should be returned."
-        ),
-    )
-    checkouts = ConnectionField(
-        CheckoutCountableConnection,
-        description="Returns checkouts assigned to this user." + ADDED_IN_38,
-        channel=graphene.String(
-            description="Slug of a channel for which the data should be returned."
-        ),
-    )
-    gift_cards = ConnectionField(
-        "saleor.graphql.giftcard.types.GiftCardCountableConnection",
-        description="List of the user gift cards.",
-    )
     note = PermissionsField(
         graphene.String,
         description="A note about the customer.",
         permissions=[AccountPermissions.MANAGE_USERS, AccountPermissions.MANAGE_STAFF],
-    )
-    orders = ConnectionField(
-        "saleor.graphql.order.types.OrderCountableConnection",
-        description=(
-            "List of user's orders. Requires one of the following permissions: "
-            f"{AccountPermissions.MANAGE_STAFF.name}, "
-            f"{AuthorizationFilters.OWNER.name}."
-        ),
     )
     user_permissions = NonNullList(
         UserPermission, description="List of user's permissions."
@@ -419,16 +354,6 @@ class User(ModelObjectType[models.User]):
         description="List of events associated with the user.",
         permissions=[AccountPermissions.MANAGE_USERS, AccountPermissions.MANAGE_STAFF],
     )
-    stored_payment_sources = NonNullList(
-        "saleor.graphql.payment.types.PaymentSource",
-        description=(
-            "List of stored payment sources. The field returns a list of payment "
-            "sources stored for payment plugins."
-        ),
-        channel=graphene.String(
-            description="Slug of a channel for which the data should be returned."
-        ),
-    )
     language_code = graphene.Field(
         LanguageCodeEnum, description="User language code.", required=True
     )
@@ -452,19 +377,6 @@ class User(ModelObjectType[models.User]):
         required=True,
         description="The data when the user last update the account information.",
     )
-    stored_payment_methods = NonNullList(
-        StoredPaymentMethod,
-        description=(
-            "Returns a list of user's stored payment methods that can be used in "
-            "provided channel. The field returns a list of stored payment methods by "
-            "payment apps. When `amount` is not provided, 0 will be used as default "
-            "value." + ADDED_IN_315 + PREVIEW_FEATURE
-        ),
-        channel=graphene.String(
-            description="Slug of a channel for which the data should be returned.",
-            required=True,
-        ),
-    )
 
     class Meta:
         description = "Represents user data."
@@ -475,87 +387,6 @@ class User(ModelObjectType[models.User]):
     @staticmethod
     def resolve_addresses(root: models.User, _info: ResolveInfo):
         return root.addresses.annotate_default(root).all()
-
-    @staticmethod
-    def resolve_checkout(root: models.User, info: ResolveInfo):
-        database_connection_name = get_database_connection_name(info.context)
-        return get_user_checkout(
-            root, database_connection_name=database_connection_name
-        )
-
-    @staticmethod
-    @traced_resolver
-    def resolve_checkout_tokens(root: models.User, info: ResolveInfo, channel=None):
-        def return_checkout_tokens(checkouts):
-            if not checkouts:
-                return []
-            checkout_global_ids = []
-            for checkout in checkouts:
-                checkout_global_ids.append(checkout.token)
-            return checkout_global_ids
-
-        if not channel:
-            return (
-                CheckoutByUserLoader(info.context)
-                .load(root.id)
-                .then(return_checkout_tokens)
-            )
-        return (
-            CheckoutByUserAndChannelLoader(info.context)
-            .load((root.id, channel))
-            .then(return_checkout_tokens)
-        )
-
-    @staticmethod
-    @traced_resolver
-    def resolve_checkout_ids(root: models.User, info: ResolveInfo, channel=None):
-        def return_checkout_ids(checkouts):
-            if not checkouts:
-                return []
-            checkout_global_ids = []
-            for checkout in checkouts:
-                checkout_global_ids.append(to_global_id_or_none(checkout))
-            return checkout_global_ids
-
-        if not channel:
-            return (
-                CheckoutByUserLoader(info.context)
-                .load(root.id)
-                .then(return_checkout_ids)
-            )
-        return (
-            CheckoutByUserAndChannelLoader(info.context)
-            .load((root.id, channel))
-            .then(return_checkout_ids)
-        )
-
-    @staticmethod
-    def resolve_checkouts(root: models.User, info: ResolveInfo, **kwargs):
-        def _resolve_checkouts(checkouts):
-            return create_connection_slice(
-                checkouts, info, kwargs, CheckoutCountableConnection
-            )
-
-        if channel := kwargs.get("channel"):
-            return (
-                CheckoutByUserAndChannelLoader(info.context)
-                .load((root.id, channel))
-                .then(_resolve_checkouts)
-            )
-        return CheckoutByUserLoader(info.context).load(root.id).then(_resolve_checkouts)
-
-    @staticmethod
-    def resolve_gift_cards(root: models.User, info: ResolveInfo, **kwargs):
-        from ..giftcard.types import GiftCardCountableConnection
-
-        def _resolve_gift_cards(gift_cards):
-            return create_connection_slice(
-                gift_cards, info, kwargs, GiftCardCountableConnection
-            )
-
-        return (
-            GiftCardsByUserLoader(info.context).load(root.id).then(_resolve_gift_cards)
-        )
 
     @staticmethod
     def resolve_user_permissions(root: models.User, info: ResolveInfo):
@@ -591,52 +422,6 @@ class User(ModelObjectType[models.User]):
     @staticmethod
     def resolve_events(root: models.User, info: ResolveInfo):
         return CustomerEventsByUserLoader(info.context).load(root.id)
-
-    @staticmethod
-    def resolve_orders(root: models.User, info: ResolveInfo, **kwargs):
-        from ..order.types import OrderCountableConnection
-
-        user_or_app = get_user_or_app_from_context(info.context)
-        if not user_or_app or (
-            root != user_or_app
-            and not user_or_app.has_perm(OrderPermissions.MANAGE_ORDERS)
-        ):
-            raise PermissionDenied(
-                permissions=[
-                    AuthorizationFilters.OWNER,
-                    OrderPermissions.MANAGE_ORDERS,
-                ]
-            )
-        requester = user_or_app
-
-        def _resolve_orders(data):
-            orders = data[0]
-            accessible_channels = data[1] if len(data) == 2 else None
-            if not requester.has_perm(OrderPermissions.MANAGE_ORDERS):
-                # allow fetch requestor orders (except drafts)
-                orders = [
-                    order for order in orders if order.status != OrderStatus.DRAFT
-                ]
-
-            # Return only orders from channels that the user has access to.
-            # The app has access to all channels.
-            if root != user_or_app and accessible_channels is not None:
-                accessible_channels = [channel.id for channel in accessible_channels]
-                orders = [
-                    order for order in orders if order.channel_id in accessible_channels
-                ]
-
-            return create_connection_slice(
-                orders, info, kwargs, OrderCountableConnection
-            )
-
-        to_fetch = [OrdersByUserLoader(info.context).load(root.id)]
-        if isinstance(requester, models.User):
-            to_fetch.append(
-                AccessibleChannelsByUserIdLoader(info.context).load(requester.id)
-            )
-
-        return Promise.all(to_fetch).then(_resolve_orders)
 
     @staticmethod
     def resolve_avatar(
@@ -707,46 +492,6 @@ class User(ModelObjectType[models.User]):
             else:
                 results.append(users_by_email.get(root.email))
         return results
-
-    @staticmethod
-    def resolve_stored_payment_methods(
-        root: models.User,
-        info: ResolveInfo,
-        channel: str,
-    ):
-        requestor = get_user_or_app_from_context(info.context)
-        if not requestor or requestor.id != root.id:
-            return []
-
-        def get_stored_payment_methods(data: tuple[Channel, "PluginsManager"]):
-            channel_obj, manager = data
-            request_data = ListStoredPaymentMethodsRequestData(
-                user=root,
-                channel=channel_obj,
-            )
-            return manager.list_stored_payment_methods(request_data)
-
-        return Promise.all(
-            [
-                ChannelBySlugLoader(info.context).load(channel),
-                get_plugin_manager_promise(info.context),
-            ]
-        ).then(get_stored_payment_methods)
-
-    @staticmethod
-    def resolve_default_billing_address(root: models.User, info: ResolveInfo):
-        if root.default_billing_address_id:
-            return AddressByIdLoader(info.context).load(root.default_billing_address_id)
-        return None
-
-    @staticmethod
-    def resolve_default_shipping_address(root: models.User, info: ResolveInfo):
-        if root.default_shipping_address_id:
-            return AddressByIdLoader(info.context).load(
-                root.default_shipping_address_id
-            )
-        return None
-
 
 class UserCountableConnection(CountableConnection):
     class Meta:

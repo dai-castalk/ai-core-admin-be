@@ -16,7 +16,6 @@ from ....core.mutations import ModelMutation
 from ....core.types import AccountError
 from ....core.utils import WebhookEventInfo
 from ....plugins.dataloaders import get_plugin_manager_promise
-from ...enums import AddressTypeEnum
 from ...i18n import I18nMixin
 from ...mixins import AddressMetadataMixin, AppImpersonateMixin
 from ...types import Address, AddressInput, User
@@ -32,14 +31,6 @@ class AccountAddressCreate(
     class Arguments:
         input = AddressInput(
             description="Fields required to create address.", required=True
-        )
-        type = AddressTypeEnum(
-            required=False,
-            description=(
-                "A type of address. If provided, the new address will be "
-                "automatically assigned as the customer's default address "
-                "of that type."
-            ),
         )
         customer_id = graphene.ID(
             required=False,

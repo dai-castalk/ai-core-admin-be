@@ -21,8 +21,6 @@ from ....core.mutations import BaseMutation
 from ....core.types import SendConfirmationEmailError
 from ....core.utils import WebhookEventInfo
 from ....plugins.dataloaders import get_plugin_manager_promise
-from ....site.dataloaders import get_site_promise
-
 
 class SendConfirmationEmail(BaseMutation):
     class Arguments:
@@ -60,11 +58,11 @@ class SendConfirmationEmail(BaseMutation):
         ]
 
     @classmethod
-    def clean_user(cls, site, redirect_url, info: ResolveInfo):
+    def clean_user(cls, redirect_url, info: ResolveInfo):
         user = info.context.user
         user = cast(models.User, user)
 
-        if user.is_confirmed or not site.settings.enable_account_confirmation_by_email:
+        if user.is_confirmed:
             raise ValidationError(
                 ValidationError(
                     "User is already confirmed",
@@ -94,9 +92,8 @@ class SendConfirmationEmail(BaseMutation):
 
     @classmethod
     def perform_mutation(cls, _root, info: ResolveInfo, /, **data):
-        site = get_site_promise(info.context).get()
         redirect_url = data["redirect_url"]
-        user = cls.clean_user(site, redirect_url, info)
+        user = cls.clean_user(redirect_url, info)
 
         channel = clean_channel(
             data.get("channel"),

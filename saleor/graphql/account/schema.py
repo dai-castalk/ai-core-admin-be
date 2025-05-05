@@ -1,7 +1,7 @@
 import graphene
 
 from ...permission.auth_filters import AuthorizationFilters
-from ...permission.enums import AccountPermissions, OrderPermissions
+from ...permission.enums import AccountPermissions
 from ...permission.utils import message_one_of_permissions_required
 from ..app.dataloaders import app_promise_callback
 from ..core import ResolveInfo
@@ -139,7 +139,7 @@ class AccountQueries(graphene.ObjectType):
         filter=CustomerFilterInput(description="Filtering options for customers."),
         sort_by=UserSortingInput(description="Sort customers."),
         description="List of the shop's customers. This list includes all users who registered through the accountRegister mutation. Additionally, staff users who have placed an order using their account will also appear in this list.",
-        permissions=[OrderPermissions.MANAGE_ORDERS, AccountPermissions.MANAGE_USERS],
+        permissions=[AccountPermissions.MANAGE_USERS],
         doc_category=DOC_CATEGORY_USERS,
     )
     permission_groups = FilterConnectionField(
@@ -186,7 +186,6 @@ class AccountQueries(graphene.ObjectType):
         permissions=[
             AccountPermissions.MANAGE_STAFF,
             AccountPermissions.MANAGE_USERS,
-            OrderPermissions.MANAGE_ORDERS,
         ],
         description="Look up a user by ID or email address.",
         doc_category=DOC_CATEGORY_USERS,

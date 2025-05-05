@@ -21,6 +21,7 @@ from graphene import ObjectType
 from graphene.types.mutation import MutationOptions
 from graphql.error import GraphQLError
 
+from .utils.metadata import metadata_contains_empty_key
 from ...core.db.connection import allow_writer
 from ...core.error_codes import MetadataErrorCode
 from ...core.exceptions import PermissionDenied
@@ -37,7 +38,6 @@ from ..app.dataloaders import get_app_promise
 from ..core.doc_category import DOC_CATEGORY_MAP
 from ..core.validators import validate_one_of_args_is_in_mutation
 from ..meta.permissions import PRIVATE_META_PERMISSION_MAP, PUBLIC_META_PERMISSION_MAP
-from ..payment.utils import metadata_contains_empty_key
 from ..plugins.dataloaders import get_plugin_manager_promise
 from ..utils import get_nodes, resolve_global_ids_to_primary_keys
 from . import ResolveInfo

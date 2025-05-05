@@ -18,10 +18,8 @@ from phonenumber_field.modelfields import PhoneNumber, PhoneNumberField
 from ..app.models import App
 from ..core.models import ModelWithExternalReference, ModelWithMetadata
 from ..core.utils.json_serializer import CustomJsonEncoder
-from ..order.models import Order
 from ..permission.enums import AccountPermissions, BasePermissionEnum, get_permissions
 from ..permission.models import Permission, PermissionsMixin, _user_has_perm
-from ..site.models import SiteSettings
 from . import CustomerEvents
 from .validators import validate_possible_number
 
@@ -148,10 +146,8 @@ class UserManager(BaseUserManager["User"]):
         return user
 
     def customers(self):
-        orders = Order.objects.values("user_id")
         return self.get_queryset().filter(
             Q(is_staff=False)
-            | (Q(is_staff=True) & (Exists(orders.filter(user_id=OuterRef("pk")))))
         )
 
     def staff(self):
@@ -319,13 +315,6 @@ class User(
         ]
         return super().has_perms(perm_list, obj)
 
-    def can_login(self, site_settings: SiteSettings):
-        return self.is_active and (
-            site_settings.allow_login_without_confirmation
-            or not site_settings.enable_account_confirmation_by_email
-            or self.is_confirmed
-        )
-
 
 class CustomerNote(models.Model):
     user = models.ForeignKey(
@@ -352,7 +341,6 @@ class CustomerEvent(models.Model):
             (type_name.upper(), type_name) for type_name, _ in CustomerEvents.CHOICES
         ],
     )
-    order = models.ForeignKey("order.Order", on_delete=models.SET_NULL, null=True)
     parameters = JSONField(blank=True, default=dict, encoder=CustomJsonEncoder)
     user = models.ForeignKey(
         User, related_name="events", on_delete=models.CASCADE, null=True

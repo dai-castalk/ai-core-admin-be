@@ -21,7 +21,6 @@ from ....core.types import AccountError, NonNullList
 from ....core.utils import WebhookEventInfo
 from ....meta.inputs import MetadataInput
 from ....plugins.dataloaders import get_plugin_manager_promise
-from ....site.dataloaders import get_site_promise
 from ...types import User
 from .base import AccountBaseInput
 
@@ -97,19 +96,12 @@ class AccountRegister(ModelMutation):
 
     @classmethod
     def mutate(cls, root, info: ResolveInfo, **data):
-        site = get_site_promise(info.context).get()
         response = super().mutate(root, info, **data)
-        response.requires_confirmation = (
-            site.settings.enable_account_confirmation_by_email
-        )
         return response
 
     @classmethod
     def clean_input(cls, info: ResolveInfo, instance, data, **kwargs):
-        site = get_site_promise(info.context).get()
-        if not site.settings.enable_account_confirmation_by_email:
-            return super().clean_input(info, instance, data, **kwargs)
-        elif not data.get("redirect_url"):
+        if not data.get("redirect_url"):
             raise ValidationError(
                 {
                     "redirect_url": ValidationError(
@@ -152,39 +144,12 @@ class AccountRegister(ModelMutation):
             user, attach_addresses_data=False
         )
         manager = get_plugin_manager_promise(info.context).get()
-        site = get_site_promise(info.context).get()
         token = None
         redirect_url = cleaned_input.get("redirect_url")
 
         with traced_atomic_transaction():
             user.is_confirmed = False
             user.save()
-            if site.settings.enable_account_confirmation_by_email:
-                # Notifications will be deprecated in the future
-                token = default_token_generator.make_token(user)
-                notifications.send_account_confirmation(
-                    user,
-                    redirect_url,
-                    manager,
-                    channel_slug=cleaned_input["channel"],
-                    token=token,
-                )
-                if redirect_url:
-                    params = urlencode(
-                        {
-                            "email": user.email,
-                            "token": token or default_token_generator.make_token(user),
-                        }
-                    )
-                    redirect_url = prepare_url(params, redirect_url)
-
-                cls.call_event(
-                    manager.account_confirmation_requested,
-                    user,
-                    cleaned_input["channel"],
-                    token,
-                    redirect_url,
-                )
 
             cls.call_event(manager.customer_created, user)
         account_events.customer_account_created_event(user=user)

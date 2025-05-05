@@ -13,7 +13,6 @@ from ..core import JobStatus
 from . import events
 from .models import ExportEvent, ExportFile
 from .notifications import send_export_failed_info
-from .utils.export import export_gift_cards, export_products, export_voucher_codes
 
 task_logger = get_task_logger(__name__)
 
@@ -21,9 +20,6 @@ task_logger = get_task_logger(__name__)
 class ExportTask(celery.Task):
     # should be updated when new export task is added
     TASK_NAME_TO_DATA_TYPE_MAPPING = {
-        "export-products": "products",
-        "export-gift-cards": "gift cards",
-        "export-voucher-codes": "voucher codes",
     }
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
@@ -56,40 +52,6 @@ class ExportTask(celery.Task):
         events.export_success_event(
             export_file=export_file, user=export_file.user, app=export_file.app
         )
-
-
-@app.task(name="export-products", base=ExportTask)
-def export_products_task(
-    export_file_id: int,
-    scope: dict[str, Union[str, dict]],
-    export_info: dict[str, list],
-    file_type: str,
-    delimiter: str = ",",
-):
-    export_file = ExportFile.objects.get(pk=export_file_id)
-    export_products(export_file, scope, export_info, file_type, delimiter)
-
-
-@app.task(name="export-gift-cards", base=ExportTask)
-def export_gift_cards_task(
-    export_file_id: int,
-    scope: dict[str, Union[str, dict]],
-    file_type: str,
-    delimiter: str = ",",
-):
-    export_file = ExportFile.objects.get(pk=export_file_id)
-    export_gift_cards(export_file, scope, file_type, delimiter)
-
-
-@app.task(name="export-voucher-codes", base=ExportTask)
-def export_voucher_codes_task(
-    export_file_id: int,
-    file_type: str,
-    voucher_id: Optional[int],
-    ids: list[int],
-):
-    export_file = ExportFile.objects.get(pk=export_file_id)
-    export_voucher_codes(export_file, file_type, voucher_id, ids)
 
 
 @app.task

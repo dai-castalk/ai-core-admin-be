@@ -10,7 +10,7 @@ from oauthlib.common import generate_token
 from ..core.models import Job, ModelWithMetadata
 from ..permission.enums import AppPermission, BasePermissionEnum
 from ..permission.models import Permission
-from ..webhook.event_types import WebhookEventAsyncType, WebhookEventSyncType
+from ..webhook.event_types import WebhookEventAsyncType
 from .types import AppExtensionMount, AppExtensionTarget, AppType
 
 
@@ -18,7 +18,7 @@ class AppQueryset(models.QuerySet["App"]):
     def for_event_type(self, event_type: str):
         permissions = {}
         required_permission = WebhookEventAsyncType.PERMISSIONS.get(
-            event_type, WebhookEventSyncType.PERMISSIONS.get(event_type)
+            event_type
         )
         if required_permission:
             app_label, codename = required_permission.value.split(".")

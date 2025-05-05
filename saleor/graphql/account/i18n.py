@@ -10,10 +10,6 @@ from ...permission.auth_filters import AuthorizationFilters
 from ...permission.enums import (
     AccountPermissions,
     BasePermissionEnum,
-    CheckoutPermissions,
-    OrderPermissions,
-    ProductPermissions,
-    SitePermissions,
 )
 from ...permission.utils import all_permissions_required
 from ..core import ResolveInfo
@@ -22,25 +18,6 @@ SKIP_ADDRESS_VALIDATION_PERMISSION_MAP: dict[str, list[BasePermissionEnum]] = {
     "addressCreate": [AccountPermissions.MANAGE_USERS],
     "addressUpdate": [AccountPermissions.MANAGE_USERS],
     "customerBulkUpdate": [AccountPermissions.MANAGE_USERS],
-    "draftOrderCreate": [OrderPermissions.MANAGE_ORDERS],
-    "draftOrderUpdate": [OrderPermissions.MANAGE_ORDERS],
-    "orderUpdate": [OrderPermissions.MANAGE_ORDERS],
-    "orderBulkCreate": [OrderPermissions.MANAGE_ORDERS_IMPORT],
-    "createWarehouse": [ProductPermissions.MANAGE_PRODUCTS],
-    "updateWarehouse": [ProductPermissions.MANAGE_PRODUCTS],
-    "shopAddressUpdate": [SitePermissions.MANAGE_SETTINGS],
-    "checkoutCreate": [
-        CheckoutPermissions.HANDLE_CHECKOUTS,
-        AuthorizationFilters.AUTHENTICATED_APP,
-    ],
-    "checkoutShippingAddressUpdate": [
-        CheckoutPermissions.HANDLE_CHECKOUTS,
-        AuthorizationFilters.AUTHENTICATED_APP,
-    ],
-    "checkoutBillingAddressUpdate": [
-        CheckoutPermissions.HANDLE_CHECKOUTS,
-        AuthorizationFilters.AUTHENTICATED_APP,
-    ],
     "accountAddressCreate": [
         AuthorizationFilters.AUTHENTICATED_APP,
         AccountPermissions.IMPERSONATE_USER,

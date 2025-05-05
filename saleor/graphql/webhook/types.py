@@ -3,7 +3,7 @@ import graphene
 from ...core import models as core_models
 from ...webhook import models
 from ...webhook.deprecated_event_types import WebhookEventType
-from ...webhook.event_types import WebhookEventAsyncType, WebhookEventSyncType
+from ...webhook.event_types import WebhookEventAsyncType
 from ..core import ResolveInfo
 from ..core.connection import (
     CountableConnection,
@@ -15,7 +15,7 @@ from ..core.descriptions import ADDED_IN_312, DEPRECATED_IN_3X_FIELD, PREVIEW_FE
 from ..core.fields import FilterConnectionField, JSONString
 from ..core.scalars import DateTime
 from ..core.types import ModelObjectType, NonNullList
-from ..webhook.enums import EventDeliveryStatusEnum, WebhookEventTypeEnum
+from ..webhook.enums import EventDeliveryStatusEnum
 from ..webhook.filters import EventDeliveryFilterInput
 from ..webhook.sorters import (
     EventDeliveryAttemptSortingInput,
@@ -27,9 +27,6 @@ from .dataloaders import PayloadByIdLoader, WebhookEventsByWebhookIdLoader
 
 class WebhookEvent(ModelObjectType[models.WebhookEvent]):
     name = graphene.String(description="Display name of the event.", required=True)
-    event_type = enums.WebhookEventTypeEnum(
-        description="Internal name of the event type.", required=True
-    )
 
     class Meta:
         model = models.WebhookEvent
@@ -54,23 +51,6 @@ class WebhookEventAsync(ModelObjectType[models.WebhookEvent]):
     def resolve_name(root: models.WebhookEvent, _info):
         if root.event_type in WebhookEventAsyncType.EVENT_MAP:
             return WebhookEventAsyncType.EVENT_MAP[root.event_type]["name"]
-        return root.event_type
-
-
-class WebhookEventSync(ModelObjectType[models.WebhookEvent]):
-    name = graphene.String(description="Display name of the event.", required=True)
-    event_type = enums.WebhookEventTypeSyncEnum(
-        description="Internal name of the event type.", required=True
-    )
-
-    class Meta:
-        model = models.WebhookEvent
-        description = "Synchronous webhook event."
-
-    @staticmethod
-    def resolve_name(root: models.WebhookEvent, _info):
-        if root.event_type in WebhookEventSyncType.EVENT_MAP:
-            return WebhookEventSyncType.EVENT_MAP[root.event_type]["name"]
         return root.event_type
 
 
@@ -116,7 +96,6 @@ class EventDelivery(ModelObjectType[core_models.EventDelivery]):
     status = EventDeliveryStatusEnum(
         description="Event delivery status.", required=True
     )
-    event_type = WebhookEventTypeEnum(description="Webhook event type.", required=True)
     attempts = FilterConnectionField(
         EventDeliveryAttemptCountableConnection,
         sort_by=EventDeliveryAttemptSortingInput(description="Event delivery sorter"),
@@ -162,11 +141,6 @@ class Webhook(ModelObjectType[models.Webhook]):
         deprecation_reason=(
             f"{DEPRECATED_IN_3X_FIELD} Use `asyncEvents` or `syncEvents` instead."
         ),
-        required=True,
-    )
-    sync_events = NonNullList(
-        WebhookEventSync,
-        description="List of synchronous webhook events.",
         required=True,
     )
     async_events = NonNullList(
@@ -223,21 +197,6 @@ class Webhook(ModelObjectType[models.Webhook]):
             WebhookEventsByWebhookIdLoader(info.context)
             .load(root.id)
             .then(_filter_by_async_type)
-        )
-
-    @staticmethod
-    def resolve_sync_events(root: models.Webhook, info: ResolveInfo):
-        def _filter_by_sync_type(webhook_events: list[WebhookEvent]):
-            return filter(
-                lambda webhook_event: webhook_event.event_type
-                in WebhookEventSyncType.ALL,
-                webhook_events,
-            )
-
-        return (
-            WebhookEventsByWebhookIdLoader(info.context)
-            .load(root.id)
-            .then(_filter_by_sync_type)
         )
 
     @staticmethod

@@ -18,7 +18,7 @@ from ..permission.enums import (
     split_permission_codename,
 )
 from ..permission.models import Permission
-from ..webhook.event_types import WebhookEventAsyncType, WebhookEventSyncType
+from ..webhook.event_types import WebhookEventAsyncType
 from ..webhook.validators import custom_headers_validator
 from .error_codes import AppErrorCode
 from .models import App
@@ -232,9 +232,6 @@ def clean_webhooks(manifest_data, errors):
     async_types = {
         str_to_enum(e_type[0]): e_type[0] for e_type in WebhookEventAsyncType.CHOICES
     }
-    sync_types = {
-        str_to_enum(e_type[0]): e_type[0] for e_type in WebhookEventSyncType.CHOICES
-    }
 
     target_url_validator = AppURLValidator(
         schemes=["http", "https", "awssqs", "gcpubsub"]
@@ -258,16 +255,6 @@ def clean_webhooks(manifest_data, errors):
                 errors["webhooks"].append(
                     ValidationError(
                         "Invalid asynchronous event.",
-                        code=AppErrorCode.INVALID.value,
-                    )
-                )
-        for e_type in webhook.get("syncEvents", []):
-            try:
-                webhook["events"].append(sync_types[e_type])
-            except KeyError:
-                errors["webhooks"].append(
-                    ValidationError(
-                        "Invalid synchronous event.",
                         code=AppErrorCode.INVALID.value,
                     )
                 )

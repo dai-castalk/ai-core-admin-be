@@ -11,12 +11,9 @@ from ....account import models as account_models
 from ....account.error_codes import AccountErrorCode
 from ....account.notifications import send_set_password_notification
 from ....account.search import prepare_user_search_document_value
-from ....checkout import AddressType
 from ....core.exceptions import PermissionDenied
 from ....core.tracing import traced_atomic_transaction
 from ....core.utils.url import prepare_url, validate_storefront_url
-from ....giftcard.search import mark_gift_cards_search_index_as_dirty
-from ....giftcard.utils import get_user_gift_cards
 from ....graphql.utils import get_user_or_app_from_context
 from ....permission.auth_filters import AuthorizationFilters
 from ....permission.enums import AccountPermissions
@@ -271,28 +268,6 @@ class BaseCustomerCreate(ModelMutation, I18nMixin):
         billing_address_data = data.pop(BILLING_ADDRESS_FIELD, None)
         cleaned_input = super().clean_input(info, instance, data, **kwargs)
 
-        if shipping_address_data:
-            address_metadata = shipping_address_data.pop("metadata", list())
-            shipping_address = cls.validate_address(
-                shipping_address_data,
-                address_type=AddressType.SHIPPING,
-                instance=getattr(instance, SHIPPING_ADDRESS_FIELD),
-                info=info,
-            )
-            cls.update_metadata(shipping_address, address_metadata)
-            cleaned_input[SHIPPING_ADDRESS_FIELD] = shipping_address
-
-        if billing_address_data:
-            address_metadata = billing_address_data.pop("metadata", list())
-            billing_address = cls.validate_address(
-                billing_address_data,
-                address_type=AddressType.BILLING,
-                instance=getattr(instance, BILLING_ADDRESS_FIELD),
-                info=info,
-            )
-            cls.update_metadata(billing_address, address_metadata)
-            cleaned_input[BILLING_ADDRESS_FIELD] = billing_address
-
         if cleaned_input.get("redirect_url"):
             try:
                 validate_storefront_url(cleaned_input.get("redirect_url"))
@@ -404,10 +379,6 @@ class BaseCustomerCreate(ModelMutation, I18nMixin):
         if cleaned_input.get("metadata"):
             manager = get_plugin_manager_promise(info.context).get()
             cls.call_event(manager.customer_metadata_updated, instance)
-
-        if cleaned_input.get("first_name") or cleaned_input.get("last_name"):
-            if user_gift_cards := get_user_gift_cards(instance):
-                mark_gift_cards_search_index_as_dirty(user_gift_cards)
 
 
 class UserDeleteMixin:

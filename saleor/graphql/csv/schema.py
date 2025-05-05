@@ -1,12 +1,10 @@
 import graphene
 
-from ...permission.enums import ProductPermissions
 from ..core import ResolveInfo
 from ..core.connection import create_connection_slice, filter_connection_queryset
 from ..core.fields import FilterConnectionField, PermissionsField
 from ..core.utils import from_global_id_or_error
 from .filters import ExportFileFilterInput
-from .mutations import ExportGiftCards, ExportProducts, ExportVoucherCodes
 from .resolvers import resolve_export_file, resolve_export_files
 from .sorters import ExportFileSortingInput
 from .types import ExportFile, ExportFileCountableConnection
@@ -19,14 +17,14 @@ class CsvQueries(graphene.ObjectType):
             graphene.ID, description="ID of the export file job.", required=True
         ),
         description="Look up a export file by ID.",
-        permissions=[ProductPermissions.MANAGE_PRODUCTS],
+        permissions=[],
     )
     export_files = FilterConnectionField(
         ExportFileCountableConnection,
         filter=ExportFileFilterInput(description="Filtering options for export files."),
         sort_by=ExportFileSortingInput(description="Sort export files."),
         description="List of export files.",
-        permissions=[ProductPermissions.MANAGE_PRODUCTS],
+        permissions=[],
     )
 
     def resolve_export_file(self, info: ResolveInfo, *, id):
@@ -39,9 +37,3 @@ class CsvQueries(graphene.ObjectType):
             qs, kwargs, allow_replica=info.context.allow_replica
         )
         return create_connection_slice(qs, info, kwargs, ExportFileCountableConnection)
-
-
-class CsvMutations(graphene.ObjectType):
-    export_products = ExportProducts.Field()
-    export_gift_cards = ExportGiftCards.Field()
-    export_voucher_codes = ExportVoucherCodes.Field()
